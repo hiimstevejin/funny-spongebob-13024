@@ -26,7 +26,7 @@ contains columns
 - test_clock: <string> test clock time for customer
 - signup_cohort: <string> signup cohort (period or quarter of signup)
 
-### Subscriptions
+### Subscription_current
 
 contains columns
 
@@ -46,6 +46,21 @@ contains columns
 - mrr_amount: <Float> normalized montly recurring revenue amount in the smallest currency unit
 - test_clock: <string> test clock time for subscription
 - plan_name: <string> name of the plan
+
+### Subscription_history
+
+derived from events to reconstruct full history of subscriptions to calculate mrr
+
+- id: unique identifier for subscription_history
+- customer_id: customer id associated with subscription_history
+- status: <string> active, past_due, canceled
+- price_id: <stirng> plus, pro, promax type of plan
+- interval_count: <integer> every 2, 3 months not really relevant
+- unit_amount: <integer> unit price
+- currency: <string> USD
+- mrr_amount: <Float> normalized montly recurring revenue amount in the smallest currency unit
+- valid_from: <string> valid start time
+- valid_to: <string> valid end time **if null this means it is the latest subscription**
 
 ### Invoice
 
