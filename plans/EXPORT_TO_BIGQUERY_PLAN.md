@@ -36,16 +36,31 @@ contains columns
 - created_at: <string> iso time of subscription creation
 - current_period_start: <string> subscription period start
 - current_period_end: <string> subscription period end
-- canceled_at <string> if canceled, canceled time
-- ended_at <string> if terminated, end time
-- price_id <stirng> plus, pro, promax type of plan
-- billing_interval <string> monthly, yearly ...
-- interval_count <integer> every 2, 3 months not really relevant
-- unit_amount <integer> defaults to 1
-- currency <string> USD
-- mrr_amount <Float> normalized montly recurring revenue amount in the smallest currency unit
-- test_clock <string> test clock time for subscription
-- plan_name <string> name of the plan
+- canceled_at: <string> if canceled, canceled time
+- ended_at: <string> if terminated, end time
+- price_id: <stirng> plus, pro, promax type of plan
+- billing_interval: <string> monthly, yearly ...
+- interval_count: <integer> every 2, 3 months not really relevant
+- unit_amount: <integer> unit price
+- currency: <string> USD
+- mrr_amount: <Float> normalized montly recurring revenue amount in the smallest currency unit
+- test_clock: <string> test clock time for subscription
+- plan_name: <string> name of the plan
+
+### Invoice
+
+- invoice_id: unique identifier
+- customer_id: customer id associated with this invoice
+- subscription_id: subscription id associated with this invoice
+- status: <string> invoice status (derive from stripe invoice statuses)
+- billing_reason: <string> reason for billing eg. subscription
+- created_at: <string> timestamp of creation
+- period_start: <string> invoice period start
+- period_end: <string> invoice period end
+- amount_due: <integer> amount charged
+- amount_paid: <integer> amount of money paid by customer
+- currency: <string> USD
+- test_clock: <string> test clock time for invoice
 
 ## MRR Calculation
 
