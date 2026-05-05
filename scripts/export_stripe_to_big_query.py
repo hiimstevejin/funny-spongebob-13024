@@ -32,7 +32,7 @@ CUSTOMER_SCHEMA = [
 ]
 
 
-SUBSCRIPTION_SCHEMA = [
+SUBSCRIPTION_CURRENT_SCHEMA = [
     bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
     bigquery.SchemaField("customer_id", "STRING"),
     bigquery.SchemaField("status", "STRING"),
@@ -51,6 +51,20 @@ SUBSCRIPTION_SCHEMA = [
     bigquery.SchemaField("plan_name", "STRING"),
 ]
 
+SUBSCRIPTION_HISTORY_SCHEMA = [
+    bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+    bigquery.SchemaField("subscription_id", "STRING"),
+    bigquery.SchemaField("customer_id", "STRING"),
+    bigquery.SchemaField("status", "STRING"),
+    bigquery.SchemaField("price_id", "STRING"),
+    bigquery.SchemaField("billing_interval", "STRING"),
+    bigquery.SchemaField("interval_count", "INTEGER"),
+    bigquery.SchemaField("unit_amount", "INTEGER"),
+    bigquery.SchemaField("currency", "STRING"),
+    bigquery.SchemaField("mrr_amount", "FLOAT"),
+    bigquery.SchemaField("valid_from", "STRING"),
+    bigquery.SchemaField("valid_to", "STRING"),
+]
 
 INVOICE_SCHEMA = [
     bigquery.SchemaField("invoice_id", "STRING", mode="REQUIRED"),
@@ -180,6 +194,150 @@ def transform_subscription(sub, clock):
     }
 
 
+def get_price_from_subscription(sub):
+    item = sub.items.data[0] if sub.items and sub.items.data else None
+    if not item:
+        return None
+
+    price = item.price
+
+    # If price was not expanded, Stripe may return only the price ID.
+    if isinstance(price, str):
+        return client.v1.prices.retrieve(price)
+
+    return price
+
+
+def calc_mrr_for_status(unit_amount, interval, interval_count, status):
+    # Store 0 MRR for terminal canceled/deleted states.
+    if status in ("canceled", "incomplete_expired"):
+        return 0.0
+
+    return calc_mrr(unit_amount, interval, interval_count)
+
+
+def extract_subscription_state_from_event(event):
+    sub = event.data.object
+    price = get_price_from_subscription(sub)
+
+    unit_amount = price.unit_amount if price else 0
+    interval = price.recurring.interval if price and price.recurring else "month"
+    interval_count = price.recurring.interval_count if price and price.recurring else 1
+    status = sub.status
+
+    if event.type == "customer.subscription.deleted":
+        status = "canceled"
+
+    return {
+        "subscription_id": sub.id,
+        "customer_id": get_customer_id(sub.customer),
+        "status": status,
+        "price_id": price.id if price else None,
+        "billing_interval": interval,
+        "interval_count": interval_count,
+        "unit_amount": unit_amount,
+        "currency": price.currency if price else None,
+        "mrr_amount": calc_mrr_for_status(
+            unit_amount,
+            interval,
+            interval_count,
+            status,
+        ),
+    }
+
+
+def states_are_different(old_state, new_state):
+    if old_state is None or new_state is None:
+        return True
+
+    fields = [
+        "status",
+        "price_id",
+        "billing_interval",
+        "interval_count",
+        "unit_amount",
+        "currency",
+        "mrr_amount",
+    ]
+
+    return any(old_state.get(field) != new_state.get(field) for field in fields)
+
+
+def fetch_subscription_event_objects():
+    event_objects = []
+
+    event_types = [
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+    ]
+
+    for event_type in event_types:
+        events = client.v1.events.list(
+            {
+                "type": event_type,
+                "limit": 100,
+            }
+        )
+
+        for event in events.auto_paging_iter():
+            event_objects.append(event)
+
+    return event_objects
+
+
+def build_subscription_history_from_events(events):
+    events_by_subscription = {}
+
+    for event in events:
+        sub = event.data.object
+        subscription_id = sub.id
+
+        if subscription_id not in events_by_subscription:
+            events_by_subscription[subscription_id] = []
+
+        events_by_subscription[subscription_id].append(event)
+
+    history_rows = []
+
+    for subscription_id, sub_events in events_by_subscription.items():
+        sub_events.sort(key=lambda e: (e.created, e.id))
+
+        current_row = None
+        current_state = None
+
+        for event in sub_events:
+            event_time = ts_to_iso(event.created)
+            new_state = extract_subscription_state_from_event(event)
+
+            if current_row is None:
+                current_row = {
+                    "id": f"{subscription_id}_{event.created}_{event.id}",
+                    **new_state,
+                    "valid_from": event_time,
+                    "valid_to": None,
+                }
+                current_state = new_state
+                continue
+
+            if states_are_different(current_state, new_state):
+                current_row["valid_to"] = event_time
+                history_rows.append(current_row)
+
+                current_row = {
+                    "id": f"{subscription_id}_{event.created}_{event.id}",
+                    **new_state,
+                    "valid_from": event_time,
+                    "valid_to": None,
+                }
+                current_state = new_state
+
+        if current_row:
+            history_rows.append(current_row)
+
+    return history_rows
+
+
 def transform_invoice(inv, clock_frozen_time=None):
     return {
         "invoice_id": inv.id,
@@ -268,14 +426,24 @@ def main():
             for inv in invs.auto_paging_iter():
                 invoice_rows.append(transform_invoice(inv, clock.frozen_time))
 
+    subscription_event_objects = fetch_subscription_event_objects()
+    subscription_history_rows = build_subscription_history_from_events(
+        subscription_event_objects
+    )
     print(
         f"Fetched {len(customer_rows)} customers, "
         f"{len(subscription_rows)} subscriptions, "
+        f"{len(subscription_history_rows)} subscription history rows, "
         f"{len(invoice_rows)} invoices"
     )
 
     load_rows("customer", list(customer_rows.values()), CUSTOMER_SCHEMA)
-    load_rows("subscriptions", subscription_rows, SUBSCRIPTION_SCHEMA)
+    load_rows("subscription_current", subscription_rows, SUBSCRIPTION_CURRENT_SCHEMA)
+    load_rows(
+        "subscription_history",
+        subscription_history_rows,
+        SUBSCRIPTION_HISTORY_SCHEMA,
+    )
     load_rows("invoice", invoice_rows, INVOICE_SCHEMA)
 
     print("Done exporting Stripe data to BigQuery.")
