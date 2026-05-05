@@ -286,6 +286,32 @@ def fetch_subscription_event_objects():
     return event_objects
 
 
+def get_subscription_event_effective_time(event):
+    sub = event.data.object
+
+    if event.type == "customer.subscription.created":
+        return ts_to_iso(sub.created)
+
+    if event.type == "customer.subscription.deleted":
+        canceled_at = getattr(sub, "canceled_at", None)
+        ended_at = getattr(sub, "ended_at", None)
+        return ts_to_iso(canceled_at or ended_at or event.created)
+
+    if event.type == "customer.subscription.updated":
+        # For plan/status changes, the best available simulated time is usually
+        # the subscription's current period start, or the cancellation timestamp
+        # if the update is tied to cancellation.
+        canceled_at = getattr(sub, "canceled_at", None)
+        ended_at = getattr(sub, "ended_at", None)
+        current_period_start = getattr(sub, "current_period_start", None)
+
+        return ts_to_iso(
+            canceled_at or ended_at or current_period_start or event.created
+        )
+
+    return ts_to_iso(event.created)
+
+
 def build_subscription_history_from_events(events):
     events_by_subscription = {}
 
@@ -307,7 +333,7 @@ def build_subscription_history_from_events(events):
         current_state = None
 
         for event in sub_events:
-            event_time = ts_to_iso(event.created)
+            event_time = get_subscription_event_effective_time(event)
             new_state = extract_subscription_state_from_event(event)
 
             if current_row is None:
