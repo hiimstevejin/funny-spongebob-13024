@@ -1,5 +1,7 @@
 # Stripe MRR Dashboard
 
+Steps below should be ran sequentially.
+
 ## How to Run the Data Generator (Step 1)
 
 0. Create a `.env` file with your Stripe API key. Refer to `.env.example` for the required format.
