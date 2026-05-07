@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+@theme inline {
+  --color-dash-bg: #141414;
+  --color-card: #1e1e1e;
+  --color-card-border: #2a2a2a;
+  --color-sage: #b8c99a;
+  --color-sage-dim: #8a9a6c;
+  --color-sage-muted: #6b7a52;
+  --color-sage-tint: #232b1c;
+}
