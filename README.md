@@ -61,3 +61,11 @@ python export_stripe_to_big_query.py
 ```
 
 To see the logic used to export stripe data into bigquery tables , see [EXPORT_TO_BIGQUERY_PLAN](./plans/SCRIPT_PLAN.md)
+
+## How to run BigQuery SQL to find monthly MRR (Step 3)
+
+copy sql from [bq_calculate_mrr.sql](./sql/bq_calculate_mrr.sql) and run it in the BigQuery console.
+
+it should return a table with columns `month`, `mrr`,
+
+other sql files in [sql](./sql/) can be run similarly and they exist for validation purposes.
