@@ -1,5 +1,7 @@
 # Stripe MRR Dashboard
 
+![screenshot](./screenshots/screenshot.png)
+
 Steps below should be ran sequentially.
 
 ## How to Run the Data Generator (Step 1)
