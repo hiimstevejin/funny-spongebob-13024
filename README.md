@@ -1,5 +1,7 @@
 # Stripe MRR Dashboard
 
+Steps below should be ran sequentially.
+
 ## How to Run the Data Generator (Step 1)
 
 0. Create a `.env` file with your Stripe API key. Refer to `.env.example` for the required format.
@@ -69,3 +71,16 @@ copy sql from [bq_calculate_mrr.sql](./sql/bq_calculate_mrr.sql) and run it in t
 it should return a table with columns `month`, `mrr`,
 
 other sql files in [sql](./sql/) can be run similarly and they exist for validation purposes.
+
+## How to run the React Frontend (Step 4)
+
+1. create a .env file in the frontend directory using the .env.example as a template.
+2. retrieve the values from GCP and fill in the .env file.
+3. run
+
+```bash
+npm install
+npm run dev
+```
+
+4. open [http://localhost:3000](http://localhost:3000) in your browser.

@@ -20,7 +20,7 @@ SELECT
   FORMAT_DATE('%Y-%m', m.month_start) AS month,
   SUM(h.mrr_amount) / 100 AS mrr_amount
 FROM month_ends m
-JOIN `project-14804b7b-f02e-414e-a61.stripe_demo.subscription_history` h
+JOIN `stripe_demo.subscription_history` h
   ON TIMESTAMP(h.valid_from) <= m.month_end_ts
   AND (
     h.valid_to IS NULL
